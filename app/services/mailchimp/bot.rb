@@ -5,7 +5,7 @@ module Mailchimp
     def initialize(user)
       @user = user
       @saved_changes = user.saved_changes
-      Gibbon::Request.api_key = SiteConfig.mailchimp_api_key
+      Gibbon::Request.api_key = Settings::General.mailchimp_api_key
       Gibbon::Request.timeout = 15
       @gibbon = Gibbon::Request.new
     end
@@ -22,10 +22,10 @@ module Mailchimp
       # attempt to update email if user changed email addresses
       success = false
       begin
-        gibbon.lists(SiteConfig.mailchimp_newsletter_id).members(target_md5_email).upsert(
+        gibbon.lists(Settings::General.mailchimp_newsletter_id).members(target_md5_email).upsert(
           body: {
             email_address: user.email,
-            status: user.email_newsletter ? "subscribed" : "unsubscribed",
+            status: user.notification_setting.email_newsletter ? "subscribed" : "unsubscribed",
             merge_fields: {
               NAME: user.name.to_s,
               USERNAME: user.username.to_s,
@@ -35,7 +35,7 @@ module Mailchimp
               ARTICLES: user.articles.size,
               COMMENTS: user.comments.size,
               ONBOARD_PK: user.onboarding_package_requested.to_s,
-              EXPERIENCE: user.experience_level || 666
+              EXPERIENCE: user.setting.experience_level || 666
             }
           },
         )
@@ -54,7 +54,7 @@ module Mailchimp
       success = false
 
       begin
-        gibbon.lists(SiteConfig.mailchimp_newsletter_id).members(target_md5_email).upsert(
+        gibbon.lists(Settings::General.mailchimp_newsletter_id).members(target_md5_email).upsert(
           body: { status: "pending" },
         )
         success = true
@@ -65,12 +65,12 @@ module Mailchimp
     end
 
     def manage_community_moderator_list
-      return false unless SiteConfig.mailchimp_community_moderators_id.present? && user.has_role?(:trusted)
+      return false unless Settings::General.mailchimp_community_moderators_id.present? && user.has_role?(:trusted)
 
       success = false
-      status = user.email_community_mod_newsletter ? "subscribed" : "unsubscribed"
+      status = user.notification_setting.email_community_mod_newsletter ? "subscribed" : "unsubscribed"
       begin
-        gibbon.lists(SiteConfig.mailchimp_community_moderators_id).members(target_md5_email).upsert(
+        gibbon.lists(Settings::General.mailchimp_community_moderators_id).members(target_md5_email).upsert(
           body: {
             email_address: user.email,
             status: status,
@@ -91,17 +91,17 @@ module Mailchimp
     end
 
     def manage_tag_moderator_list
-      return false unless SiteConfig.mailchimp_tag_moderators_id.present? && user.tag_moderator?
+      return false unless Settings::General.mailchimp_tag_moderators_id.present? && user.tag_moderator?
 
       success = false
 
       tag_ids = user.roles.where(name: "tag_moderator").pluck(:resource_id)
       tag_names = Tag.where(id: tag_ids).pluck(:name)
 
-      status = user.email_tag_mod_newsletter ? "subscribed" : "unsubscribed"
+      status = user.notification_setting.email_tag_mod_newsletter ? "subscribed" : "unsubscribed"
 
       begin
-        gibbon.lists(SiteConfig.mailchimp_tag_moderators_id).members(target_md5_email).upsert(
+        gibbon.lists(Settings::General.mailchimp_tag_moderators_id).members(target_md5_email).upsert(
           body: {
             email_address: user.email,
             status: status,
@@ -123,9 +123,9 @@ module Mailchimp
     end
 
     def unsub_sustaining_member
-      return unless SiteConfig.mailchimp_sustaining_members_id.present? && a_sustaining_member?
+      return unless Settings::General.mailchimp_sustaining_members_id.present? && a_sustaining_member?
 
-      gibbon.lists(SiteConfig.mailchimp_sustaining_members_id).members(target_md5_email).update(
+      gibbon.lists(Settings::General.mailchimp_sustaining_members_id).members(target_md5_email).update(
         body: {
           status: "unsubscribed"
         },
@@ -133,9 +133,9 @@ module Mailchimp
     end
 
     def unsub_community_mod
-      return unless SiteConfig.mailchimp_community_moderators_id.present? && user.trusted
+      return unless Settings::General.mailchimp_community_moderators_id.present? && user.trusted
 
-      gibbon.lists(SiteConfig.mailchimp_community_moderators_id).members(target_md5_email).update(
+      gibbon.lists(Settings::General.mailchimp_community_moderators_id).members(target_md5_email).update(
         body: {
           status: "unsubscribed"
         },
@@ -143,9 +143,9 @@ module Mailchimp
     end
 
     def unsub_tag_mod
-      return unless SiteConfig.mailchimp_tag_moderators_id.present? && user.tag_moderator?
+      return unless Settings::General.mailchimp_tag_moderators_id.present? && user.tag_moderator?
 
-      gibbon.lists(SiteConfig.mailchimp_tag_moderators_id).members(target_md5_email).update(
+      gibbon.lists(Settings::General.mailchimp_tag_moderators_id).members(target_md5_email).update(
         body: {
           status: "unsubscribed"
         },
@@ -155,7 +155,7 @@ module Mailchimp
     def unsubscribe_all_newsletters
       success = false
       begin
-        gibbon.lists(SiteConfig.mailchimp_newsletter_id).members(target_md5_email).update(
+        gibbon.lists(Settings::General.mailchimp_newsletter_id).members(target_md5_email).update(
           body: {
             status: "unsubscribed"
           },

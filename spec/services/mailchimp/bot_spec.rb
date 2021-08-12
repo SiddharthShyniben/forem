@@ -35,7 +35,7 @@ RSpec.describe Mailchimp::Bot, type: :service do
           ARTICLES: user.articles.size,
           COMMENTS: user.comments.size,
           ONBOARD_PK: user.onboarding_package_requested.to_s,
-          EXPERIENCE: user.experience_level || 666
+          EXPERIENCE: user.setting.experience_level || 666
         }
       }
     }
@@ -50,20 +50,21 @@ RSpec.describe Mailchimp::Bot, type: :service do
 
   describe "#upsert_to_newsletter" do
     it "sends proper information" do
+      user.notification_setting.update(email_newsletter: true)
       described_class.new(user).upsert_to_newsletter
       expect(my_gibbon_client).to have_received(:upsert).with(matcher)
     end
 
     it "unsubscribes properly" do
-      user.update(email_newsletter: false)
+      user.notification_setting.update(email_newsletter: false)
       described_class.new(user).upsert_to_newsletter
       expect(my_gibbon_client).to have_received(:upsert)
         .with(hash_including(body: hash_including(status: "unsubscribed")))
     end
 
     it "subscribes properly" do
-      user.update(email_newsletter: false)
-      user.update(email_newsletter: true)
+      user.notification_setting.update(email_newsletter: false)
+      user.notification_setting.update(email_newsletter: true)
       described_class.new(user).upsert_to_newsletter
       expect(my_gibbon_client).to have_received(:upsert)
         .with(hash_including(body: hash_including(status: "subscribed")))
@@ -78,7 +79,7 @@ RSpec.describe Mailchimp::Bot, type: :service do
     end
 
     it "tries to resubscribe the user if the user has previously been subscribed" do
-      user.update(email_newsletter: false)
+      user.notification_setting.update(email_newsletter: false)
       mailchimp_bot = described_class.new(user)
       mc_error =
         Gibbon::MailChimpError.new("Error", status_code: 400, title: "Member In Compliance State")
@@ -92,18 +93,18 @@ RSpec.describe Mailchimp::Bot, type: :service do
   end
 
   describe "manage community moderator list" do
-    before { SiteConfig.mailchimp_community_moderators_id = "something" }
+    before { Settings::General.mailchimp_community_moderators_id = "something" }
 
-    after { SiteConfig.mailchimp_community_moderators_id = nil }
+    after { Settings::General.mailchimp_community_moderators_id = nil }
 
     it "returns false if user isn't a community moderator" do
       expect(described_class.new(user).manage_community_moderator_list).to be(false)
     end
 
     it "sends proper information" do
-      user.update(email_community_mod_newsletter: true)
+      user.notification_setting.update(email_community_mod_newsletter: true)
       user.add_role(:trusted)
-      SiteConfig.mailchimp_community_moderators_id = "something"
+      Settings::General.mailchimp_community_moderators_id = "something"
       described_class.new(user).manage_community_moderator_list
       expect(my_gibbon_client).to have_received(:upsert)
         .with(hash_including(
@@ -115,16 +116,16 @@ RSpec.describe Mailchimp::Bot, type: :service do
   end
 
   describe "manage tag moderator list" do
-    before { SiteConfig.mailchimp_tag_moderators_id = "something" }
+    before { Settings::General.mailchimp_tag_moderators_id = "something" }
 
-    after { SiteConfig.mailchimp_tag_moderators_id = nil }
+    after { Settings::General.mailchimp_tag_moderators_id = nil }
 
     it "returns false if user isn't a tag moderator" do
       expect(described_class.new(user).manage_tag_moderator_list).to be(false)
     end
 
     it "sends proper information" do
-      user.update(email_tag_mod_newsletter: true)
+      user.notification_setting.update(email_tag_mod_newsletter: true)
       user.add_role(:tag_moderator, tag)
       described_class.new(user).manage_tag_moderator_list
       expect(my_gibbon_client).to have_received(:upsert)

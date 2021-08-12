@@ -6,7 +6,7 @@ module Feeds
 
     def initialize(users: nil, earlier_than: nil)
       # using nil here to avoid an unnecessary table count to check presence
-      @users = users || User.with_feed
+      @users = users || User.where(id: Users::Setting.with_feed.select(:user_id))
       @earlier_than = earlier_than
 
       # NOTE: should these be configurable? Currently they are the result of empiric
@@ -64,7 +64,7 @@ module Feeds
 
     # TODO: put this in separate service object
     def fetch_feeds(batch_of_users)
-      data = batch_of_users.pluck(:id, :feed_url)
+      data = batch_of_users.joins(:setting).pluck(:id, "users_settings.feed_url")
 
       result = Parallel.map(data, in_threads: num_fetchers) do |user_id, url|
         cleaned_url = url.to_s.strip
@@ -141,6 +141,7 @@ module Feeds
           organization_id: nil,
         )
 
+        subscribe_author_to_comments(user, article)
         articles.append(article)
       rescue StandardError => e
         # TODO: add better exception handling
@@ -148,7 +149,7 @@ module Feeds
           e,
           feeds_import_info: {
             username: user.username,
-            feed_url: user.feed_url,
+            feed_url: user.setting&.feed_url,
             item_count: item_count_error(feed),
             error: "Feeds::Import::CreateArticleError:#{item.url}"
           },
@@ -170,6 +171,15 @@ module Feeds
       return "NIL FEED, INVALID URL" unless feed
 
       feed.entries ? feed.entries.length : "no count"
+    end
+
+    def subscribe_author_to_comments(user, article)
+      NotificationSubscription.create!(
+        user: user,
+        notifiable_id: article.id,
+        notifiable_type: "Article",
+        config: "all_comments",
+      )
     end
   end
 end

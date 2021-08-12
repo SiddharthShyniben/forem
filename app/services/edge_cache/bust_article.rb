@@ -6,7 +6,6 @@ module EdgeCache
       [-> { 1.year.ago }, "year"],
       [-> { 5.years.ago }, "infinity"],
     ].freeze
-
     def self.call(article)
       return unless article
 

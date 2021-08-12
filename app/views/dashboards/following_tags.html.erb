@@ -3,17 +3,15 @@
 <div id="index-container"
   data-params="<%= params.to_json(only: %i[action per_page]) %>"
   data-which="following">
-  <main id="main-content">
     <header class="crayons-layout">
       <h1 class="p-2 pb-0 m:p-0 crayons-title">Dashboard &raquo; Following tags</h1>
       <%= render "actions_mobile" %>
     </header>
 
-    <div class="crayons-layout crayons-layout--2-cols">
-      <aside class="crayons-layout__sidebar-left">
+    <main id="main-content" class="crayons-layout crayons-layout--2-cols">
+      <div class="crayons-layout__sidebar-left">
         <%= render "actions" %>
-      </aside>
-
+      </div>
       <div class="crayons-layout__content mb-5" id="user-dashboard">
         <% if @followed_tags.any? %>
           <%= javascript_packs_with_chunks_tag "dashboardTagsDisableUnchangedButtons", defer: true %>
@@ -30,7 +28,7 @@
                 <% color = Color::CompareHex.new([tag.bg_color_hex || "#0000000", tag.text_color_hex || "#ffffff"]).brightness(0.8) %>
                 <div class="crayons-card branded-2 p-4 m:p-6 m:pt-4 flex flex-col single-article break-word content-center <% if follow.explicit_points < 0 %>opacity-75<% end %>" style="border-top-color: <%= color %>;" id="follows-<%= follow.id %>">
                   <h3 class="s:mb-1 -ml-1 p-0 fw-medium">
-                    <a href="/t/<%= tag.name %>" class="crayons-tag crayons-tag--l">
+                    <a href="<%= URL.tag tag %>" class="crayons-tag crayons-tag--l">
                       <span class="crayons-tag__prefix">#</span><%= tag.name %>
                     </a>
                     <% if follow.explicit_points < 0 %>
@@ -59,6 +57,5 @@
         <% end %>
         <%= render "sublist" %>
       </div>
-    </div>
-  </main>
+    </main>
 </div>

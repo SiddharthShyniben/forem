@@ -70,14 +70,12 @@ Rails.application.configure do
   # config.i18n.raise_on_missing_translations = true
 
   # Annotate rendered view with file names.
-  # config.action_view.annotate_rendered_view_with_filenames = true
+  config.action_view.annotate_rendered_view_with_filenames = true
 
   # Adds additional error checking when serving assets at runtime.
   # Checks for improperly declared sprockets dependencies.
   # Raises helpful error messages.
   config.assets.raise_runtime_errors = true
-
-  config.action_mailer.perform_caching = false
 
   config.hosts << ENV["APP_DOMAIN"] unless ENV["APP_DOMAIN"].nil?
   if (gitpod_workspace_url = ENV["GITPOD_WORKSPACE_URL"])
@@ -137,7 +135,7 @@ Rails.application.configure do
     # Check if there are any data update scripts to run during startup
     if %w[Console Server DBConsole].any? { |const| Rails.const_defined?(const) } && DataUpdateScript.scripts_to_run?
       message = "Data update scripts need to be run before you can start the application. " \
-        "Please run 'rails data_updates:run'"
+                "Please run 'rails data_updates:run'"
       raise message
     end
   end

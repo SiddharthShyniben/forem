@@ -13,7 +13,7 @@ class EmailDigest
         # Temporary
         # @sre:mstruve This is temporary until we have an efficient way to handle this job
         # for our large DEV community. Smaller Forems should be able to handle it no problem
-        if SiteConfig.dev_to?
+        if ForemInstance.dev_to?
           Emails::SendUserDigestWorker.new.perform(user.id)
         else
           Emails::SendUserDigestWorker.perform_async(user.id)
@@ -25,6 +25,8 @@ class EmailDigest
   private
 
   def get_users
-    User.registered.where(email_digest_periodic: true).where.not(email: "")
+    User.registered.joins(:notification_setting)
+      .where(notification_setting: { email_digest_periodic: true })
+      .where.not(email: "")
   end
 end

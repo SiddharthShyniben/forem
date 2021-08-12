@@ -30,6 +30,15 @@ RSpec.describe "/admin/invitations", type: :request do
       expect(User.last.registered).to be false
     end
 
+    it "enqueues an invitation email to be sent", :aggregate_failures do
+      assert_enqueued_with(job: Devise.mailer.delivery_job) do
+        post admin_invitations_path,
+             params: { user: { email: "hey#{rand(1000)}@email.co", name: "Roger #{rand(1000)}" } }
+      end
+
+      expect(enqueued_jobs.first[:args]).to match(array_including("invitation_instructions"))
+    end
+
     it "does not create an invitation if a user with that email exists" do
       expect do
         post admin_invitations_path,
@@ -51,7 +60,7 @@ RSpec.describe "/admin/invitations", type: :request do
       expect do
         delete admin_invitation_path(invitation.id)
       end.to change { User.all.count }.by(-1)
-      expect(response.body).to redirect_to "/admin/invitations"
+      expect(response.body).to redirect_to admin_invitations_path
     end
   end
 end

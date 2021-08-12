@@ -1,9 +1,9 @@
 module RateLimitCheckerHelper
   NEW_USER_MESSAGE = "How many %<thing>s can a new member (%<timeframe>s or less) " \
-    "create within any 5 minute period?".freeze
+                     "create within any 5 minute period?".freeze
 
   def self.new_user_message(thing)
-    timeframe = "day".pluralize(SiteConfig.user_considered_new_days)
+    timeframe = "day".pluralize(Settings::RateLimit.user_considered_new_days)
     format(NEW_USER_MESSAGE, thing: thing, timeframe: timeframe)
   end
 
@@ -67,6 +67,12 @@ module RateLimitCheckerHelper
       placeholder: 1,
       title: "Limit number of comments created by a new member",
       description: new_user_message("comments")
+    },
+    mention_creation: {
+      min: 0,
+      placeholder: 7,
+      title: "Limit number of @-mentions in a post or comment",
+      description: "How many times can someone @-mention other users in a post or comment?"
     },
     listing_creation: {
       min: 1,

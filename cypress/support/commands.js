@@ -1,3 +1,5 @@
+import { getInterceptsForLingeringUserRequests } from '../util/networkUtils';
+
 // ***********************************************
 // This example commands.js shows you how to
 // create various custom commands and overwrite
@@ -23,6 +25,44 @@
 //
 // -- This will overwrite an existing command --
 // Cypress.Commands.overwrite("visit", (originalFn, url, options) => { ... })
+
+/**
+ * Use this function to sign a user out without lingering network calls causing unintended side-effects.
+ */
+Cypress.Commands.add('signOutUser', () => {
+  const intercepts = getInterceptsForLingeringUserRequests('/', false);
+
+  return cy.request('DELETE', '/users/sign_out').then(() => {
+    cy.visit('/');
+    cy.wait(intercepts);
+  });
+});
+
+/**
+ * Logins in a user and visits the given URL, waiting for all user-related network requests triggered by the login to complete.
+ * This ensures that no user side effects bleed into subsequent tests.
+ */
+Cypress.Commands.add('loginAndVisit', (user, url) => {
+  cy.loginUser(user).then(() => {
+    cy.visitAndWaitForUserSideEffects(url);
+  });
+});
+
+/**
+ * Visits the given URL, waiting for all user-related network requests to complete.
+ * This ensures that no user side effects bleed into subsequent tests.
+ */
+Cypress.Commands.add('visitAndWaitForUserSideEffects', (url, options) => {
+  // If navigating directly to an admin route, no relevant network requests to intercept
+  const { baseUrl } = Cypress.config().baseUrl;
+  if (url === `${baseUrl}/admin` || url.includes('/admin/')) {
+    cy.visit(url, options);
+  } else {
+    const intercepts = getInterceptsForLingeringUserRequests(url, true);
+    cy.visit(url, options);
+    cy.wait(intercepts);
+  }
+});
 
 /**
  * Runs necessary test setup to run a clean test.
@@ -56,11 +96,25 @@ Cypress.Commands.add('loginUser', ({ email, password }) => {
   const encodedEmail = encodeURIComponent(email);
   const encodedPassword = encodeURIComponent(password);
 
-  return cy.request(
-    'POST',
-    '/users/sign_in',
-    `utf8=%E2%9C%93&user%5Bemail%5D=${encodedEmail}&user%5Bpassword%5D=${encodedPassword}&user%5Bremember_me%5D=0&user%5Bremember_me%5D=1&commit=Continue`,
-  );
+  function getLoginRequest() {
+    return cy.request(
+      'POST',
+      '/users/sign_in',
+      `utf8=%E2%9C%93&user%5Bemail%5D=${encodedEmail}&user%5Bpassword%5D=${encodedPassword}&user%5Bremember_me%5D=0&user%5Bremember_me%5D=1&commit=Continue`,
+    );
+  }
+
+  return getLoginRequest().then((response) => {
+    if (response.status === 200) {
+      return response;
+    }
+
+    cy.log('Login failed. Attempting one more login.');
+
+    // If we have a login failure, try one more time.
+    // This is to combat some flaky tests where the login fails occasionnally.
+    return getLoginRequest();
+  });
 });
 
 const toPayload = (isEnabled) => (isEnabled ? '1' : '0');
@@ -83,26 +137,26 @@ const DEFAULT_AUTH_CONFIG = {
 };
 
 /**
- * Sets default values of SiteConfig atrributes relevant to Authentication Section.
+ * Sets default values of Settings::General atrributes relevant to Authentication Section.
  *
  * @param username {string} The username used in the test
- * @param siteConfig
- * @param siteConfig.inviteOnlyMode {boolean}
- * @param siteConfig.emailRegistration {boolean}
- * @param siteConfig.allowedEmailDomains {string}
- * @param siteConfig.publicEmailDomainList {boolean}
- * @param siteConfig.requireRecaptcha {boolean}
- * @param siteConfig.recaptchaSiteKey {string}
- * @param siteConfig.recaptchaSecretKey {string}
- * @param siteConfig.authProvidersToEnable {string} Comma-separated string of providers to be enabled
- * @param siteConfig.facebookKey {string}
- * @param siteConfig.facebookSecret {string}
- * @param siteConfig.githubKey {string}
- * @param siteConfig.githubSecret {string}
- * @param siteConfig.twitterKey {string}
- * @param siteConfig.twitterSecret {string}
+ * @param settingsGeneral
+ * @param settingsGeneral.inviteOnlyMode {boolean}
+ * @param settingsGeneral.emailRegistration {boolean}
+ * @param settingsGeneral.allowedEmailDomains {string}
+ * @param settingsGeneral.publicEmailDomainList {boolean}
+ * @param settingsGeneral.requireRecaptcha {boolean}
+ * @param settingsGeneral.recaptchaSiteKey {string}
+ * @param settingsGeneral.recaptchaSecretKey {string}
+ * @param settingsGeneral.authProvidersToEnable {string} Comma-separated string of providers to be enabled
+ * @param settingsGeneral.facebookKey {string}
+ * @param settingsGeneral.facebookSecret {string}
+ * @param settingsGeneral.githubKey {string}
+ * @param settingsGeneral.githubSecret {string}
+ * @param settingsGeneral.twitterKey {string}
+ * @param settingsGeneral.twitterSecret {string}
  *
- * @returns {Cypress.Chainable<Cypress.Response>} A cypress request for setting SiteConfig values for the Authentication Section.
+ * @returns {Cypress.Chainable<Cypress.Response>} A cypress request for setting Settings::General values for the Authentication Section.
  */
 Cypress.Commands.add(
   'updateAdminAuthConfig',
@@ -136,7 +190,7 @@ Cypress.Commands.add(
         publicEmailDomainList,
       )}&settings_authentication%5Brequire_captcha_for_email_password_registration%5D=${toPayload(
         requireRecaptcha,
-      )}&settings_authentication%5Brecaptcha_site_key%5D=${recaptchaSiteKey}&settings_authentication%5Brecaptcha_secret_key%5D=${recaptchaSecretKey}&settings_authentication%5Bauth_providers_to_enable%5D=${authProvidersToEnable}&settings_authentication%5Bfacebook_key%5D=${facebookKey}&settings_authentication%5Bfacebook_secret%5D=${facebookSecret}&settings_authentication%5Bgithub_key%5D=${githubKey}&settings_authentication%5Bgithub_secret%5D=${githubSecret}&settings_authentication%5Btwitter_key%5D=${twitterKey}&settings_authentication%5Btwitter_secret%5D=${twitterSecret}&confirmation=My+username+is+%40${username}+and+this+action+is+100%25+safe+and+appropriate.&commit=Update+Site+Configuration`,
+      )}&settings_authentication%5Brecaptcha_site_key%5D=${recaptchaSiteKey}&settings_authentication%5Brecaptcha_secret_key%5D=${recaptchaSecretKey}&settings_authentication%5Bauth_providers_to_enable%5D=${authProvidersToEnable}&settings_authentication%5Bfacebook_key%5D=${facebookKey}&settings_authentication%5Bfacebook_secret%5D=${facebookSecret}&settings_authentication%5Bgithub_key%5D=${githubKey}&settings_authentication%5Bgithub_secret%5D=${githubSecret}&settings_authentication%5Btwitter_key%5D=${twitterKey}&settings_authentication%5Btwitter_secret%5D=${twitterSecret}&confirmation=My+username+is+%40${username}+and+this+action+is+100%25+safe+and+appropriate.&commit=Update+Settings`,
     );
   },
 );

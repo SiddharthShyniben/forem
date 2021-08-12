@@ -32,10 +32,10 @@ RSpec.describe "NavigationLinks", type: :request do
 
     it "deletes release-tied fragment caches" do
       Timecop.freeze do
-        expect(SiteConfig.admin_action_taken_at).not_to eq(5.minutes.ago)
-        allow(SiteConfig).to receive(:admin_action_taken_at).and_return(5.minutes.ago)
+        expect(Settings::General.admin_action_taken_at).not_to eq(5.minutes.ago)
+        allow(Settings::General).to receive(:admin_action_taken_at).and_return(5.minutes.ago)
         post admin_navigation_links_path, params: { navigation_link: new_navigation_link }
-        expect(SiteConfig.admin_action_taken_at).to eq(5.minutes.ago)
+        expect(Settings::General.admin_action_taken_at).to eq(5.minutes.ago)
       end
     end
 
@@ -60,12 +60,19 @@ RSpec.describe "NavigationLinks", type: :request do
       expect(response).to redirect_to admin_navigation_links_path
     end
 
-    it "updates the profile field values" do
+    it "updates the navigation-link field values" do
       put admin_navigation_link_path(navigation_link.id),
           params: { navigation_link: { name: "Example" } }
 
       changed_navigation_link_record = NavigationLink.find(navigation_link.id)
       expect(changed_navigation_link_record.name).to eq("Example")
+      expect(changed_navigation_link_record.other_section?).to be(false)
+
+      put admin_navigation_link_path(navigation_link.id),
+          params: { navigation_link: { section: "other" } }
+
+      changed_navigation_link_record2 = NavigationLink.find(navigation_link.id)
+      expect(changed_navigation_link_record2.other_section?).to be(true)
     end
   end
 

@@ -1,5 +1,5 @@
 ---
-title: Apple Authentication (beta)
+title: Apple Authentication
 ---
 
 # Sign in with Apple Authentication
@@ -11,15 +11,6 @@ to use this authentication method you'll need to be enrolled to the
 retrieve the necessary credentials and an HTTPS supported URL for the callback
 configuration (HTTP won't work). Then you'll need to provide the keys to the
 Rails application.
-
-#### Beta support
-
-This authentication provider is currently marked as beta. This means it will be
-available but hidden from public access until more thoroughly tested.
-
-If you want to make this feature publicly available (without the state
-parameter) you can enable the `apple_auth` feature flag from the Flipper
-dashboard or the Rails console with `Flipper.enable(:apple_auth)`.
 
 # Apple Developer Portal Configuration
 
@@ -56,7 +47,8 @@ Account.
 # Configuring the Rails Application
 
 Now with both the Service ID and Key you'll need to enable Apple Authentication
-and pass in the credentials in the admin dashboard `/admin/config`.
+and pass in the credentials in the admin dashboard
+`/admin/customization/config`.
 
 ![Admin Authentication Configuration Dashboard](https://user-images.githubusercontent.com/6045239/92613383-25a83780-f278-11ea-94a7-b710da544c9d.png)
 

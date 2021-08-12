@@ -45,6 +45,12 @@ RSpec.describe Comment, type: :model do
         expect(subject).not_to be_valid
       end
 
+      it "is invalid if commentable is an article and the discussion is locked" do
+        subject.commentable = build(:article, :with_discussion_lock)
+
+        expect(subject).not_to be_valid
+      end
+
       it "is valid without a commentable" do
         subject.commentable = nil
 
@@ -87,7 +93,6 @@ RSpec.describe Comment, type: :model do
 
     describe "#user_mentions_in_markdown" do
       before do
-        stub_const("Comment::MAX_USER_MENTIONS", 7)
         stub_const("Comment::MAX_USER_MENTION_LIVE_AT", 1.day.ago) # Set live_at date to a time in the past
       end
 
@@ -96,24 +101,24 @@ RSpec.describe Comment, type: :model do
         subject.created_at = 3.days.ago
         subject.commentable_type = "Article"
 
-        subject.body_markdown = "hi @#{user.username}! " * (Comment::MAX_USER_MENTIONS + 1)
+        subject.body_markdown = "hi @#{user.username}! " * (Settings::RateLimit.mention_creation + 1)
         expect(subject).to be_valid
       end
 
       it "is valid with seven or fewer mentions if created after MAX_USER_MENTION_LIVE_AT date" do
         subject.commentable_type = "Article"
 
-        subject.body_markdown = "hi @#{user.username}! " * Comment::MAX_USER_MENTIONS
+        subject.body_markdown = "hi @#{user.username}! " * Settings::RateLimit.mention_creation
         expect(subject).to be_valid
       end
 
       it "is invalid with more than seven mentions if created after MAX_USER_MENTION_LIVE_AT date" do
         subject.commentable_type = "Article"
 
-        subject.body_markdown = "hi @#{user.username}! " * (Comment::MAX_USER_MENTIONS + 1)
+        subject.body_markdown = "hi @#{user.username}! " * (Settings::RateLimit.mention_creation + 1)
         expect(subject).not_to be_valid
         expect(subject.errors[:base])
-          .to include("You cannot mention more than #{Comment::MAX_USER_MENTIONS} users in a comment!")
+          .to include("You cannot mention more than #{Settings::RateLimit.mention_creation} users in a comment!")
       end
     end
     # rubocop:enable RSpec/NamedSubject
@@ -179,14 +184,34 @@ RSpec.describe Comment, type: :model do
         expect(comment.processed_html.include?("Hello <a")).to be(true)
       end
 
-      it "shortens long urls" do
-        comment.body_markdown = "Hello https://longurl.com/#{'x' * 100}?#{'y' * 100}"
+      # rubocop:disable RSpec/ExampleLength
+      it "shortens long urls without removing formatting", :aggregate_failures do
+        long_url = "https://longurl.com/#{'x' * 100}?#{'y' * 100}"
+        comment.body_markdown = "Hello #{long_url}"
         comment.validate!
-        expect(comment.processed_html.include?("...</a>")).to be(true)
+        expect(comment.processed_html.include?("...")).to be(true)
         expect(comment.processed_html.size < 450).to be(true)
+
+        comment.body_markdown = "Hello this is [**#{long_url}**](#{long_url})"
+        comment.validate!
+        expect(comment.processed_html.include?("...</strong>")).to be(true)
+
+        long_text = "Does not strip out text without urls #{'x' * 200}#{'y' * 200}"
+        comment.body_markdown = "[**#{long_text}**](#{long_url})"
+        comment.validate!
+        expect(comment.processed_html.include?("...")).to be(false)
+
+        image_url = "https://i.picsum.photos/id/126/500/500.jpg?hmac=jNnQC44a_UR01TNuazfKROio0T_HaZVg0ikfR0d_xWY"
+        comment.body_markdown = "Hello ![Alt-text](#{image_url})"
+        comment.validate!
+        expect(comment.processed_html.include?("<img src=\"#{image_url}\"")).to be(true)
       end
 
-      # rubocop:disable RSpec/ExampleLength
+      it "shortens urls for article link previews" do
+        comment.body_markdown = "{% link #{URL.url(article.path)} %}"
+        expect { comment.validate! }.not_to raise_error
+      end
+
       it "adds timestamp url if commentable has video and timestamp", :aggregate_failures do
         article.video = "https://example.com"
 
@@ -238,7 +263,7 @@ RSpec.describe Comment, type: :model do
 
   describe "#readable_publish_date" do
     it "does not show year in readable time if not current year" do
-      expect(comment.readable_publish_date).to eq(comment.created_at.strftime("%b %e"))
+      expect(comment.readable_publish_date).to eq(comment.created_at.strftime("%b %-e"))
     end
 
     it "shows year in readable time if not current year" do
@@ -414,8 +439,8 @@ RSpec.describe Comment, type: :model do
 
   describe "spam" do
     before do
-      allow(Settings::Mascot).to receive(:mascot_user_id).and_return(user.id)
-      allow(SiteConfig).to receive(:spam_trigger_terms).and_return(["yahoomagoo gogo", "anothertestterm"])
+      allow(Settings::General).to receive(:mascot_user_id).and_return(user.id)
+      allow(Settings::RateLimit).to receive(:spam_trigger_terms).and_return(["yahoomagoo gogo", "anothertestterm"])
     end
 
     it "creates vomit reaction if possible spam" do
@@ -457,9 +482,27 @@ RSpec.describe Comment, type: :model do
   end
 
   context "when callbacks are triggered before save" do
-    it "generates character count before saving" do
-      comment.save
-      expect(comment.markdown_character_count).to eq(comment.body_markdown.size)
+    context "when the post is present" do
+      it "generates character count before saving" do
+        comment.save
+        expect(comment.markdown_character_count).to eq(comment.body_markdown.size)
+      end
+    end
+
+    context "when the commentable is not present" do
+      it "raises a validation error with message 'item has been deleted'", :aggregate_failures do
+        comment = build(:comment, user: user, commentable: nil, commentable_type: nil)
+        comment.validate
+        expect(comment).not_to be_valid
+        expect(comment.errors_as_sentence).to match("item has been deleted")
+      end
+
+      it "raises a validation error with commentable_type, if commentable_type is present", :aggregate_failures do
+        comment = build(:comment, user: user, commentable: nil, commentable_type: "Article")
+        comment.validate
+        expect(comment).not_to be_valid
+        expect(comment.errors_as_sentence).to match("Article has been deleted")
+      end
     end
   end
 

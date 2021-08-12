@@ -8,7 +8,7 @@
   <meta name="description" content="">
   <meta name="author" content="">
   <%= csrf_meta_tags %>
-  <%= favicon_link_tag Images::Optimizer.call(SiteConfig.favicon_url, width: 32) %>
+  <%= favicon_link_tag Images::Optimizer.call(Settings::General.favicon_url, width: 32) %>
   <title><%= controller_name.titleize %></title>
 
   <!-- StimulusJS -->
@@ -28,7 +28,7 @@
   data-honeybadger-key="<%= ApplicationConfig["HONEYBADGER_JS_API_KEY"] %>"
   data-deployed-at="<%= ForemInstance.deployed_at %>"
   data-latest-commit-id="<%= ForemInstance.latest_commit_id %>"
-  data-ga-tracking="<%= SiteConfig.ga_tracking_id %>">
+  data-ga-tracking="<%= Settings::General.ga_tracking_id %>">
   <header class="crayons-header">
     <div class="crayons-header__container">
       <%= render "layouts/logo" %>
@@ -39,7 +39,7 @@
       </h1>
 
       <div class="flex items-center h-100 ml-auto">
-        <a href="https://forem.gitbook.io/forem-admin-guide/" class="crayons-btn crayons-btn--ghost-brand hidden mr-2 whitespace-nowrap s:block">
+        <a href="https://admin.forem.com/" class="crayons-btn crayons-btn--ghost-brand hidden mr-2 whitespace-nowrap s:block">
           Forem Admin Guide
         </a>
 
@@ -52,7 +52,7 @@
 
   <div class="crayons-layout crayons-layout--2-cols">
     <div class="admin__left-sidebar crayons-layout__left-sidebar" data-controller="sidebar" data-action="load@window->sidebar#disableCurrentNavItem">
-      <nav class="hidden m:block">
+      <nav>
           <ul>
             <li>
               <a class="crayons-link crayons-link--block <%= "crayons-link--current" if controller.controller_name == "overview" %>" href="<%= admin_path %>" aria-current "<%= "page" if controller.controller_name == "overview" %>">
@@ -61,10 +61,16 @@
               </a>
             </li>
             <%= render "admin/shared/nested_sidebar", menu_items: AdminMenu.navigation_items %>
+            <li class="block s:hidden">
+              <a class="crayons-link crayons-link--block" href="/">
+                <%= inline_svg_tag("website.svg", aria: true, class: "dropdown-icon crayons-icon") %>
+                Go to <%= community_name %> home page
+              </a>
+            </li>
           </ul>
       </nav>
     </div>
-    <main class="crayons-layout__content min-w-0">
+    <main class="crayons-layout__content min-w-0 p-2">
       <% flash.each do |type, message| %>
         <div class="alert alert-<%= type == "notice" || type == "success" ? "success" : "danger" %>">
           <button class="close" data-dismiss="alert" aria-label="Close">
@@ -91,8 +97,5 @@
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.16/js/bootstrap-select.min.js" integrity="sha256-COIM4OdXvo3jkE0/jD/QIEDe3x0jRuqHhOdGTkno3uM=" crossorigin="anonymous"></script>
-
-  <%= javascript_include_tag "internal" %>
-
 </body>
 </html>

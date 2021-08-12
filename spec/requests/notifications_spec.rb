@@ -3,13 +3,13 @@ require "rails_helper"
 RSpec.describe "NotificationsIndex", type: :request do
   include ActionView::Helpers::DateHelper
 
-  let(:dev_account) { create(:user) }
+  let(:staff_account) { create(:user) }
   let(:mascot_account) { create(:user) }
   let(:user) { create(:user) }
   let(:organization) { create(:organization) }
 
   before do
-    allow(User).to receive(:dev_account).and_return(dev_account)
+    allow(User).to receive(:staff_account).and_return(staff_account)
     allow(User).to receive(:mascot_account).and_return(mascot_account)
   end
 
@@ -20,6 +20,14 @@ RSpec.describe "NotificationsIndex", type: :request do
 
   def renders_article_path(article)
     expect(response.body).to include article.path
+  end
+
+  def renders_authors_name(article)
+    expect(response.body).to include CGI.escapeHTML(article.user.name)
+  end
+
+  def renders_article_published_at(article)
+    expect(response.body).to include time_ago_in_words(article.published_at)
   end
 
   def renders_comments_html(comment)
@@ -529,7 +537,7 @@ RSpec.describe "NotificationsIndex", type: :request do
 
       before do
         user.add_role(:trusted)
-        user.update(mod_roundrobin_notifications: false)
+        user.notification_setting.update(mod_roundrobin_notifications: false)
         sign_in user
         sidekiq_perform_enqueued_jobs do
           Notification.send_moderation_notification(comment)
@@ -645,7 +653,7 @@ RSpec.describe "NotificationsIndex", type: :request do
       end
     end
 
-    context "when a user has a new mention notification" do
+    context "when a user has a new comment mention notification" do
       let(:user2)    { create(:user) }
       let(:article)  { create(:article, user_id: user.id) }
       let(:comment) do
@@ -673,14 +681,36 @@ RSpec.describe "NotificationsIndex", type: :request do
       end
     end
 
-    context "when a user has a new article notification" do
+    context "when a user has a new article mention notification" do
+      let(:user2)    { create(:user) }
+      let(:article)  { create(:article, user_id: user2.id) }
+      let(:mention)  { create(:mention, mentionable: article, user: user) }
+
+      before do
+        article.update!(body_markdown: "Hello, @#{user.username}!")
+        sidekiq_perform_enqueued_jobs do
+          Notification.send_mention_notification(mention)
+        end
+        sign_in user
+        get "/notifications"
+      end
+
+      it "renders the proper message" do
+        expect(response.body).to include "mentioned you in a post"
+        renders_article_path(article)
+        renders_authors_name(article)
+        renders_article_published_at(article)
+      end
+    end
+
+    context "when a user has a new article created notification" do
       let(:user2)    { create(:user) }
       let(:article)  { create(:article, user_id: user.id) }
 
       before do
         user2.follow(user)
         sidekiq_perform_enqueued_jobs do
-          Notification.send_to_followers(article, "Published")
+          Notification.send_to_mentioned_users_and_followers(article)
         end
         sign_in user2
         get "/notifications"
@@ -691,14 +721,6 @@ RSpec.describe "NotificationsIndex", type: :request do
         renders_article_path(article)
         renders_authors_name(article)
         renders_article_published_at(article)
-      end
-
-      def renders_authors_name(article)
-        expect(response.body).to include CGI.escapeHTML(article.user.name)
-      end
-
-      def renders_article_published_at(article)
-        expect(response.body).to include time_ago_in_words(article.published_at)
       end
 
       it "renders the reaction as previously reacted if it was reacted on" do
@@ -720,7 +742,7 @@ RSpec.describe "NotificationsIndex", type: :request do
       before do
         user2.follow(user)
         sidekiq_perform_enqueued_jobs do
-          Notification.send_to_followers(article, "Published")
+          Notification.send_to_mentioned_users_and_followers(article)
         end
         sign_in admin
       end

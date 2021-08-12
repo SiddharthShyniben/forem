@@ -84,6 +84,16 @@ RSpec.describe Articles::Feeds::LargeForemExperimental, type: :service do
         create(:user_block, blocker: user, blocked: second_user, config: "default")
         expect(result).not_to include(hot_story)
       end
+
+      it "doesn't display blocked articles", type: :system, js: true do
+        selector = "article[data-content-user-id='#{hot_story.user_id}']"
+        sign_in user
+        visit root_path
+        expect(page).to have_selector(selector, visible: :visible)
+        create(:user_block, blocker: user, blocked: hot_story.user, config: "default")
+        visit root_path
+        expect(page).to have_selector(selector, visible: :hidden)
+      end
     end
 
     context "when ranking is true" do
@@ -272,7 +282,11 @@ RSpec.describe Articles::Feeds::LargeForemExperimental, type: :service do
     let(:article) { create(:article, experience_level_rating: 7) }
 
     context "when user has a further experience level" do
-      let(:user) { create(:user, experience_level: 1) }
+      let(:user) { create(:user) }
+
+      before do
+        user.setting.update(experience_level: 1)
+      end
 
       it "returns negative of (absolute value of the difference between article and user experience) divided by 2" do
         expect(feed.score_experience_level(article)).to eq(-3)
@@ -285,7 +299,11 @@ RSpec.describe Articles::Feeds::LargeForemExperimental, type: :service do
     end
 
     context "when user has a closer experience level" do
-      let(:user) { create(:user, experience_level: 9) }
+      let(:user) { create(:user) }
+
+      before do
+        user.setting.update(experience_level: 9)
+      end
 
       it "returns negative of (absolute value of the difference between article and user experience) divided by 2" do
         expect(feed.score_experience_level(article)).to eq(-1)
@@ -293,7 +311,11 @@ RSpec.describe Articles::Feeds::LargeForemExperimental, type: :service do
     end
 
     context "when the user does not have an experience level set" do
-      let(:user) { create(:user, experience_level: nil) }
+      let(:user) { create(:user) }
+
+      before do
+        user.setting.update(experience_level: nil)
+      end
 
       it "uses a value of 5 for user experience level" do
         expect(feed.score_experience_level(article)).to eq(-1)

@@ -49,7 +49,9 @@ module TagModerators
     end
 
     def add_tag_mod_role(user, tag)
-      user.update(email_tag_mod_newsletter: true) unless user.email_tag_mod_newsletter?
+      unless user.notification_setting.email_tag_mod_newsletter?
+        user.notification_setting.update(email_tag_mod_newsletter: true)
+      end
       user.add_role(:tag_moderator, tag)
       Rails.cache.delete("user-#{user.id}/tag_moderators_list")
       return unless tag_mod_newsletter_enabled?
@@ -58,8 +60,8 @@ module TagModerators
     end
 
     def tag_mod_newsletter_enabled?
-      SiteConfig.mailchimp_api_key.present? &&
-        SiteConfig.mailchimp_tag_moderators_id.present?
+      Settings::General.mailchimp_api_key.present? &&
+        Settings::General.mailchimp_tag_moderators_id.present?
     end
 
     def chat_channel_slug(tag)

@@ -7,6 +7,10 @@ RSpec.describe "Authenticating with Email" do
   before do
     allow(Settings::Authentication).to receive(:allow_email_password_registration).and_return(true)
     allow(Settings::Authentication).to receive(:allow_email_password_login).and_return(true)
+    allow(ForemInstance).to receive(:smtp_enabled?).and_return(true)
+    # rubocop:disable RSpec/AnyInstance
+    allow_any_instance_of(ProfileImageUploader).to receive(:download!)
+    # rubocop:enable RSpec/AnyInstance
   end
 
   context "when a user is new" do
@@ -110,9 +114,9 @@ RSpec.describe "Authenticating with Email" do
     end
   end
 
-  context "when community is in invite only mode" do
+  context "when community is in invite-only mode" do
     before do
-      allow(Settings::Authentication).to receive(:invite_only_mode).and_return(true)
+      allow(ForemInstance).to receive(:invitation_only?).and_return(true)
     end
 
     it "doesn't present the authentication option" do
